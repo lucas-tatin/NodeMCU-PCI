@@ -1,0 +1,88 @@
+# inclui  < Arduíno.h >
+# inclui  < ESP8266WiFi.h >
+# inclui  " SinricPro.h "
+# inclui  " SinricProSwitch.h "
+
+# define  WIFI_SSID          " "    
+# define  WIFI_PASS          " "
+# define  APP_KEY            " "       // Deve se parecer com "de0bxxxx-1x3x-4x3x-ax2x-5dabxxxxxxx"
+# define  APP_SECRET         " "    // Deve se parecer com "5f36xxxx-x3x7-4x3x-xexe-e86724a9xxxx-4c4axxxx-3x3x-x5xe-x9x3-333d65xxxxxx"
+# define  SWITCH_ID          " "     // Deve se parecer com "5dc1564130xxxxxxxxxxxxxx"
+# define  BAUD_RATE          9600                 // Muda a taxa de transmissão para sua necessidade
+
+# define  BUTTON_PIN  0    // GPIO para BUTTON (invertido: LOW = pressionado, HIGH = liberado)
+# define  RELE_PIN    5     // D1   
+
+bool myPowerState = false ;
+unsigned  long lastBtnPress = 0 ;
+
+
+bool  onPowerState ( const String &deviceId, bool &state) {
+  Serial. printf ( " Device %s virou %s (via SinricPro) \r\n " , deviceId. c_str (), state? " on " : " off " );
+  meuPowerState = estado;
+  digitalWrite (RELE_PIN, myPowerState?LOW:HIGH);
+  retorna  verdadeiro ; // pedido tratado corretamente
+}
+
+void  handleButtonPress () {
+  unsigned  long actualMillis = millis (); // obtém o real millis() e o mantém na variável atualMillis
+  if ( digitalRead (BUTTON_PIN) == LOW && atualMillis - lastBtnPress > 1000 ) { // o botão é pressionado (lógica invertida! botão pressionado = LOW) e debounced?
+    if (myPowerState) {      // inverter myPowerState: se for true, defina como false, vice-versa
+      myPowerState = false ;
+    } senão {
+      meuPowerState = true ;
+    }
+    digitalWrite (RELE_PIN, myPowerState?LOW:HIGH); // se myPowerState indica que o dispositivo está ligado: acende o led (o led embutido usa lógica invertida: LOW = LED ON / HIGH = LED OFF)
+
+    // recupera o dispositivo Switch
+    SinricProSwitch& mySwitch = SinricPro[SWITCH_ID];
+    // envia evento powerstate
+    meuComutador. sendPowerStateEvent (myPowerState); // envia o novo powerState para o servidor SinricPro
+    Serial. printf ( " Dispositivo %s ativado %s (manualmente via botão flash) \r\n " , mySwitch. getDeviceId (). c_str (), myPowerState? " on " : " off " );
+
+    lastBtnPress = atualMillis;  // atualiza a variável do último botão pressionado
+  }
+}
+
+// função de configuração para conexão WiFi
+void  setupWiFi () {
+  Serial. printf ( " \r\n [Wifi]: Conectando " );
+  Wi-fi. começar (WIFI_SSID, WIFI_PASS);
+
+  while (WiFi. status () != WL_CONNECTED) {
+    Serial. printf ( " . " );
+    atraso ( 250 );
+  }
+  Serial. printf ( " conectado! \r\n [WiFi]: O endereço IP é %s \r\n " , WiFi. localIP (). toString (). c_str ());
+}
+
+// função de configuração para SinricPro
+void  setupSinricPro () {
+  // adiciona o dispositivo ao SinricPro
+  SinricProSwitch& mySwitch = SinricPro[SWITCH_ID];
+
+  // define a função de retorno de chamada para o dispositivo
+  meuComutador. onPowerState (onPowerState);
+
+  // configura o SinricPro
+  Sinric Pro. onConnected ([](){ Serial. printf ( " Conectado ao SinricPro \r\n " ); });
+  Sinric Pro. onDisconnected ([](){ Serial. printf ( " Desconectado do SinricPro \r\n " ); });
+  // SinricPro.restoreDeviceStates(true); // Remova o comentário para restaurar o último estado conhecido do servidor.
+  Sinric Pro. começar (APP_KEY, APP_SECRET);
+}
+
+// função de configuração principal
+void  configuração () {
+  pinMode (BUTTON_PIN, INPUT_PULLUP); // GPIO 0 como entrada, puxado para cima
+  pinMode (RELE_PIN, SAÍDA); // define LED GPIO como saída
+  digitalWrite (RELE_PIN, ALTO); // desliga o LED na inicialização
+
+  Serial. começar (BAUD_RATE); Serial. printf ( " \r\n\r\n " );
+  configuraçãoWiFi ();
+  setupSinricPro ();
+}
+
+void  loop () {
+  handleButtonPress ();
+  Sinric Pro. manusear ();
+}
